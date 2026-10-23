@@ -1,1 +1,614 @@
 #####
+#########################################
+-----------------------degug>IntegrationConfig>GeoMartIntegrationConfig-------------
+
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE IntegrationConfig PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<IntegrationConfig executor="com.xxx.integrationConfig.GeoMartIntegrationConfigExecutor" name="GeoMartIntegrationConfig" roleSyncStyle="none">
+  <Attributes>
+    <Map>
+      <entry key="operations" value="Create,Modify"/>
+    </Map>
+  </Attributes>
+  <ManagedResources>
+    <ManagedResource>
+      <ApplicationRef>
+        <Reference class="sailpoint.object.Application" name="GeoMart-PROD"/>
+      </ApplicationRef>
+    </ManagedResource>
+    <ManagedResource>
+      <ApplicationRef>
+        <Reference class="sailpoint.object.Application" name="GeoMart-QA"/>
+      </ApplicationRef>
+    </ManagedResource>
+    <ManagedResource>
+      <ApplicationRef>
+        <Reference class="sailpoint.object.Application" name="GeoMart-Test"/>
+      </ApplicationRef>
+    </ManagedResource>
+    <ManagedResource>
+      <ApplicationRef>
+        <Reference class="sailpoint.object.Application" name="GeoMart-DEV"/>
+      </ApplicationRef>
+    </ManagedResource>
+    <ManagedResource>
+      <ApplicationRef>
+        <Reference class="sailpoint.object.Application" name="GeoMart-TRN"/>
+      </ApplicationRef>
+    </ManagedResource>
+  </ManagedResources>
+</IntegrationConfig>
+
+#######################################
+
+
+##############################################
+-----------config/Application/xxx-Application-GeoMart-Test.xml---------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Application PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Application connector="sailpoint.connector.webservices.WebServicesConnector" featuresString="PROVISIONING, ENABLE, AUTHENTICATE" name="GeoMart-Test" profileClass="" type="Web Services">
+  <AccountCorrelationConfig>
+    <Reference class="sailpoint.object.CorrelationConfig" name="GeoMart Correlation"/>
+  </AccountCorrelationConfig>
+  <Attributes>
+    <Map>
+      <entry key="afterProvisioningRule"/>
+      <entry key="associatedApplication" value="A2766"/>
+      <entry key="authenticationMethod" value="No Auth"/>
+      <entry key="actionCodeProcessingCustom" value="xxx-Custom-ApplicationActionCodeMapping-GeoHub"/>
+      <entry key="associatedApplication" value="A2766"/>
+      <entry key="beforeProvisioningRule" value="xxx-Rule-BeforeProvisioning-GeoHub"/>
+      <entry key="clientCertAuthEnabled">
+        <value>
+          <Boolean/>
+        </value>
+      </entry>
+      <entry key="compositeDefinition"/>
+      <entry key="connectionParameters">
+        <value>
+          <List>
+            <Map>
+              <entry key="afterRule" value="xxx-Rule-WebServiceAfterOperationRule-GeoHub-TestConnection"/>
+              <entry key="beforeRule"/>
+              <entry key="body">
+                <value>
+                  <Map>
+                    <entry key="bodyFormData">
+                      <value>
+                        <Map>
+                          <entry key="password" value="$application.geomart_password$"/>
+                          <entry key="referer" value="https://$application.geomart_hostname$/portal"/>
+                          <entry key="username" value="$application.geomart_username$"/>
+                        </Map>
+                      </value>
+                    </entry>
+                    <entry key="bodyFormat" value="formData"/>
+                    <entry key="jsonBody"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="contextUrl" value="/generateToken?f=json"/>
+              <entry key="header">
+                <value>
+                  <Map>
+                    <entry key="Content-Type" value="application/x-www-form-urlencoded"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="httpMethodType" value="POST"/>
+              <entry key="operationType" value="Test Connection"/>
+              <entry key="paginationSteps"/>
+              <entry key="pagingInitialOffset">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="pagingSize">
+                <value>
+                  <Integer>50</Integer>
+                </value>
+              </entry>
+              <entry key="parentEndpointName"/>
+              <entry key="resMappingObj">
+                <value>
+                  <Map>
+                    <entry key="errorCode" value="error.code"/>
+                    <entry key="errorMessage" value="error.details[0]"/>
+                    <entry key="expires" value="expires"/>
+                    <entry key="token" value="token"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="responseCode">
+                <value>
+                  <List>
+                    <String>200</String>
+                  </List>
+                </value>
+              </entry>
+              <entry key="rootPath"/>
+              <entry key="sequenceNumberForEndpoint" value="1"/>
+              <entry key="uniqueNameForEndPoint" value="Test Connection"/>
+              <entry key="xpathNamespaces"/>
+            </Map>
+            <Map>
+              <entry key="afterRule" value="xxx-Rule-WebServiceAfterOperationRule-GeoMart-GetAllAccounts"/>
+              <entry key="beforeRule" value="xxx-Rule-WebServiceBeforeOperationRule-GeoHub-getAllAccountsToken"/>
+              <entry key="body">
+                <value>
+                  <Map>
+                    <entry key="bodyFormData"/>
+                    <entry key="bodyFormat" value="raw"/>
+                    <entry key="jsonBody"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="contextUrl" value="/portals/self/users?num=%%GEOMART_TEST_PAGESIZE%%&amp;f=json&amp;token=REPLACENEWTOKEN"/>
+              <entry key="header"/>
+              <entry key="httpMethodType" value="GET"/>
+              <entry key="operationType" value="Account Aggregation"/>
+              <entry key="paginationSteps"/>
+              <entry key="pagingInitialOffset">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="pagingSize">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="parentEndpointName"/>
+              <entry key="resMappingObj">
+                <value>
+                  <Map>
+                    <entry key="disabled" value="disabled"/>
+                    <entry key="email" value="email"/>
+                    <entry key="errorCode" value="error.code"/>
+                    <entry key="errorMessage" value="error.details[0]"/>
+                    <entry key="firstname" value="firstName"/>
+                    <entry key="fullname" value="fullName"/>
+                    <entry key="groups" value="groups[*]"/>
+                    <entry key="id" value="id"/>
+                    <entry key="idpUsername" value="idpUsername"/>
+                    <entry key="lastname" value="lastName"/>
+                    <entry key="provider" value="provider"/>
+                    <entry key="tags" value="tags[*]"/>
+                    <entry key="tags.department" value="tags[?(@ =~ /department:.*/i)]"/>
+                    <entry key="tags.lobDisplayName" value="tags[?(@ =~ /lobDisplayName:.*/i)]"/>
+                    <entry key="tags.manager" value="tags[?(@ =~ /manager:.*/i)]"/>
+                    <entry key="userLicenseTypeId" value="userLicenseTypeId"/>
+                    <entry key="userType" value="userType"/>
+                    <entry key="username" value="username"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="responseCode">
+                <value>
+                  <List>
+                    <String>200</String>
+                  </List>
+                </value>
+              </entry>
+              <entry key="rootPath" value="$.users"/>
+              <entry key="sequenceNumberForEndpoint" value="2"/>
+              <entry key="uniqueNameForEndPoint" value="Account Aggregation"/>
+              <entry key="xpathNamespaces"/>
+            </Map>
+            <Map>
+              <entry key="afterRule" value="xxx-Rule-WebServiceAfterOperationRule-GeoHub-TestConnection"/>
+              <entry key="beforeRule" value="xxx-Rule-WebServiceBeforeOperationRule-GeoHub-getToken"/>
+              <entry key="body">
+                <value>
+                  <Map>
+                    <entry key="bodyFormData"/>
+                    <entry key="bodyFormat" value="raw"/>
+                    <entry key="jsonBody"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="contextUrl" value="/portals/self/userLicenseTypes?start=1&amp;num=10&amp;f=json&amp;token=REPLACENEWTOKEN"/>
+              <entry key="header"/>
+              <entry key="httpMethodType" value="GET"/>
+              <entry key="operationType" value="Group Aggregation-userLicenseTypeId"/>
+              <entry key="paginationSteps"/>
+              <entry key="pagingInitialOffset">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="pagingSize">
+                <value>
+                  <Integer>50</Integer>
+                </value>
+              </entry>
+              <entry key="parentEndpointName"/>
+              <entry key="resMappingObj">
+                <value>
+                  <Map>
+                    <entry key="description" value="description"/>
+                    <entry key="errorCode" value="error.code"/>
+                    <entry key="errorMessage" value="error.details[0]"/>
+                    <entry key="id" value="id"/>
+                    <entry key="isEsriDefault" value="isEsriDefault"/>
+                    <entry key="level" value="level"/>
+                    <entry key="maxUsers" value="maxUsers"/>
+                    <entry key="name" value="name"/>
+                    <entry key="state" value="state"/>
+                    <entry key="supportsSignInOnlyFromUTApps" value="supportsSignInOnlyFromUTApps"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="responseCode">
+                <value>
+                  <List>
+                    <String>200</String>
+                  </List>
+                </value>
+              </entry>
+              <entry key="rootPath" value="$.userLicenseTypes"/>
+              <entry key="sequenceNumberForEndpoint" value="3"/>
+              <entry key="uniqueNameForEndPoint" value="Group Aggregation for userLicenseTypes"/>
+              <entry key="xpathNamespaces"/>
+            </Map>
+            <Map>
+              <entry key="afterRule" value="xxx-Rule-WebServiceAfterOperationRule-GeoHub-TestConnection"/>
+              <entry key="beforeRule" value="xxx-Rule-WebServiceBeforeOperationRule-GeoHub-getToken"/>
+              <entry key="body">
+                <value>
+                  <Map>
+                    <entry key="bodyFormData"/>
+                    <entry key="bodyFormat" value="raw"/>
+                    <entry key="jsonBody"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="contextUrl" value="/community/users/$plan.nativeIdentity$?f=json&amp;token=REPLACENEWTOKEN"/>
+              <entry key="header"/>
+              <entry key="httpMethodType" value="GET"/>
+              <entry key="operationType" value="Get Object"/>
+              <entry key="paginationSteps"/>
+              <entry key="pagingInitialOffset">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="pagingSize">
+                <value>
+                  <Integer>50</Integer>
+                </value>
+              </entry>
+              <entry key="parentEndpointName"/>
+              <entry key="resMappingObj">
+                <value>
+                  <Map>
+                    <entry key="disabled" value="disabled"/>
+                    <entry key="email" value="email"/>                    
+		            <entry key="firstname" value="firstName"/>                    
+		            <entry key="fullname" value="fullName"/>
+                    <entry key="groups" value="groups[*]"/>
+                    <entry key="id" value="id"/>
+                    <entry key="idpUsername" value="idpUsername"/>                    
+		            <entry key="lastname" value="lastName"/>
+                    <entry key="provider" value="provider"/>
+                    <entry key="tags" value="tags[*]"/>
+                    <entry key="tags.department" value="tags[?(@ =~ /department:.*/i)]"/>
+                    <entry key="tags.lobDisplayName" value="tags[?(@ =~ /lobDisplayName:.*/i)]"/>
+                    <entry key="tags.manager" value="tags[?(@ =~ /manager:.*/i)]"/>
+                    <entry key="userLicenseTypeId" value="userLicenseTypeId"/>
+                    <entry key="userType" value="userType"/>
+                    <entry key="username" value="username"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="responseCode">
+                <value>
+                  <List>
+                    <String>200</String>
+                  </List>
+                </value>
+              </entry>
+              <entry key="rootPath"/>
+              <entry key="sequenceNumberForEndpoint" value="4"/>
+              <entry key="uniqueNameForEndPoint" value="Get Single User"/>
+              <entry key="xpathNamespaces"/>
+            </Map>
+            <Map>
+              <entry key="afterRule" value="xxx-Rule-WebServiceAfterOperationRule-GeoHub-TestConnection"/>
+              <entry key="beforeRule" value="xxx-Rule-WebServiceBeforeOperationRule-GeoHub-getToken"/>
+              <entry key="body">
+                <value>
+                  <Map>
+                    <entry key="bodyFormData">
+                      <value>
+                        <Map>
+                          <entry key="token" value="$application.token$"/>
+                          <entry key="users" value="[&quot;$plan.nativeIdentity$&quot;]"/>
+                        </Map>
+                      </value>
+                    </entry>
+                    <entry key="bodyFormat" value="formData"/>
+                    <entry key="jsonBody"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="contextUrl" value="/portals/self/enableUsers?f=json"/>
+              <entry key="header">
+                <value>
+                  <Map>
+                    <entry key="Content-Type" value="application/x-www-form-urlencoded"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="httpMethodType" value="POST"/>
+              <entry key="operationType" value="Enable Account"/>
+              <entry key="paginationSteps"/>
+              <entry key="pagingInitialOffset">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="pagingSize">
+                <value>
+                  <Integer>50</Integer>
+                </value>
+              </entry>
+              <entry key="parentEndpointName"/>
+              <entry key="resMappingObj">
+                <value>
+                  <Map>
+                    <entry key="errorCode" value="error.code"/>
+                    <entry key="errorMessage" value="error.details[0]"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="responseCode">
+                <value>
+                  <List>
+                    <String>200</String>
+                  </List>
+                </value>
+              </entry>
+              <entry key="rootPath"/>
+              <entry key="sequenceNumberForEndpoint" value="5"/>
+              <entry key="uniqueNameForEndPoint" value="Enable Account"/>
+              <entry key="xpathNamespaces"/>
+            </Map>
+            <Map>
+              <entry key="afterRule" value="xxx-Rule-WebServiceAfterOperationRule-GeoHub-TestConnection"/>
+              <entry key="beforeRule" value="xxx-Rule-WebServiceBeforeOperationRule-GeoHub-getToken"/>
+              <entry key="body">
+                <value>
+                  <Map>
+                    <entry key="bodyFormData">
+                      <value>
+                        <Map>
+                          <entry key="token" value="$application.token$"/>
+                          <entry key="users" value="[&quot;$plan.nativeIdentity$&quot;]"/>
+                        </Map>
+                      </value>
+                    </entry>
+                    <entry key="bodyFormat" value="formData"/>
+                    <entry key="jsonBody"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="contextUrl" value="/portals/self/disableUsers?f=json"/>
+              <entry key="header">
+                <value>
+                  <Map>
+                    <entry key="Content-Type" value="application/x-www-form-urlencoded"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="httpMethodType" value="POST"/>
+              <entry key="operationType" value="Disable Account"/>
+              <entry key="paginationSteps"/>
+              <entry key="pagingInitialOffset">
+                <value>
+                  <Integer>0</Integer>
+                </value>
+              </entry>
+              <entry key="pagingSize">
+                <value>
+                  <Integer>50</Integer>
+                </value>
+              </entry>
+              <entry key="parentEndpointName"/>
+              <entry key="resMappingObj">
+                <value>
+                  <Map>
+                    <entry key="errorCode" value="error.code"/>
+                    <entry key="errorMessage" value="error.details[0]"/>
+                    <entry key="token" value="token"/>
+                  </Map>
+                </value>
+              </entry>
+              <entry key="responseCode">
+                <value>
+                  <List>
+                    <String>200</String>
+                  </List>
+                </value>
+              </entry>
+              <entry key="rootPath"/>
+              <entry key="sequenceNumberForEndpoint" value="6"/>
+              <entry key="uniqueNameForEndPoint" value="Disable Account"/>
+              <entry key="xpathNamespaces"/>
+            </Map>
+          </List>
+        </value>
+      </entry>
+      <entry key="createAccountWithEntReq">
+        <value>
+          <Boolean>true</Boolean>
+        </value>
+      </entry>
+      <entry key="creatorUT" value="%%GEOMART_TEST_CREATORUT_ROLE%%"/>
+      <entry key="defaultRole" value="%%GEOMART_TEST_DEFAULT_ROLE%%"/>
+      <entry key="enableHasMore" value="true"/>
+      <entry key="enableStatus" value="disabled=false"/>
+      <entry key="encrypted" value="geomart_password,accesstoken,refresh_token,oauth_token_info,client_secret,private_key,private_key_password,clientCertificate,clientKeySpec,resourceOwnerPassword"/>
+      <entry key="fieldWorkerUT" value="%%GEOMART_TEST_FIELDWORKERUT_ROLE%%"/>
+      <entry key="genericWebServiceBaseUrl" value="%%GEOMART_TEST_BASE_URL%%"/>
+      <entry key="geomart_hostname" value="%%GEOMART_TEST_HOSTNAME%%"/>
+      <entry key="geomart_password" value="%%GEOMART_TEST_SERVICE_PASSWORD%%"/>
+      <entry key="geomart_username" value="%%GEOMART_TEST_SERVICE_ACCOUNT%%"/>
+      <entry key="geomart_pagesize">
+        <value>
+          <Integer>%%GEOMART_TEST_PAGESIZE%%</Integer>
+        </value>
+      </entry>
+      <entry key="httpCookieSpecsStandard" value="true"/>
+      <entry key="isGetObjectRequiredForPTA">
+        <value>
+          <Boolean>true</Boolean>
+        </value>
+      </entry>
+      <entry key="nativeChangeDetectionAttributeScope" value="entitlements"/>
+      <entry key="nativeChangeDetectionAttributes"/>
+      <entry key="nativeChangeDetectionEnabled">
+        <value>
+          <Boolean>true</Boolean>
+        </value>
+      </entry>
+      <entry key="nativeChangeDetectionOperations">
+        <value>
+          <List>
+            <String>Create</String>
+            <String>Modify</String>
+          </List>
+        </value>
+      </entry>
+      <entry key="oAuthJwtHeader">
+        <value>
+          <Map>
+            <entry key="alg" value="RS256"/>
+          </Map>
+        </value>
+      </entry>
+      <entry key="oAuthJwtPayload">
+        <value>
+          <Map>
+            <entry key="aud"/>
+            <entry key="exp" value="15f"/>
+            <entry key="iss"/>
+            <entry key="sub"/>
+          </Map>
+        </value>
+      </entry>
+      <entry key="private_key_to_update"/>
+      <entry key="retryableErrors">
+        <value>
+          <List>
+            <String>Connection timed out</String>
+            <String>Exception</String>
+            <String>a</String>
+            <String>e</String>
+            <String>i</String>
+            <String>o</String>
+            <String>u</String>
+          </List>
+        </value>
+      </entry>
+      <entry key="sysDescriptions">
+        <value>
+          <Map>
+            <entry key="en_US" value="GeoMart Cloud - leverages Esri ArcGIS enterprise to host PG&amp;E managed application in AWS. Esri ArcGIS is a family of client software, server software, and online geographic information system services developed and maintained by Esri.&lt;br>&#xD;&#xA;&#xD;&#xA;App SME: M6KF (Manoj Kumar), KDMD (Kurt McNeel-Caird)&lt;br>&#xD;&#xA;&#xD;&#xA;Project Manager: VXTJ (Victoria Thomas), A8N8 (Amritha Nadar)&lt;br>"/>
+          </Map>
+        </value>
+      </entry>
+      <entry key="templateApplication" value="Web Services"/>
+      <entry key="throwProvAfterRuleException">
+        <value>
+          <Boolean>true</Boolean>
+        </value>
+      </entry>
+      <entry key="throwProvBeforeRuleException">
+        <value>
+          <Boolean>true</Boolean>
+        </value>
+      </entry>
+      <entry key="timeoutInSeconds"/>      
+      <entry key="viewerUT" value="%%GEOMART_TEST_VIEWERUT_ROLE%%"/>
+    </Map>
+  </Attributes>
+  <Owner>
+    <Reference class="sailpoint.object.Identity" name="spadmin"/>
+  </Owner>
+  <ProvisioningForms>
+    <Form name="Create Policy for GeoMart" objectType="account" type="Create">
+      <Attributes>
+        <Map>
+          <entry key="pageTitle" value="Create Policy for GeoMart"/>
+        </Map>
+      </Attributes>
+      <Section name="Account Attributes">
+        <Field name="email" type="string">
+          <Script>
+            <Source><![CDATA[%%GEOMART_TEST_CREATEPP_EMAIL%%]]></Source>
+          </Script>
+        </Field>
+        <Field name="firstname" type="string">
+          <Script>
+            <Source><![CDATA[return identity.getFirstname();]]></Source>
+          </Script>
+        </Field>
+        <Field name="lastname" type="string">
+          <Script>
+            <Source><![CDATA[return identity.getLastname();]]></Source>
+          </Script>
+        </Field>
+        <Field name="idpUsername" type="string">
+          <Script>
+            <Source><![CDATA[return identity.getEmail();]]></Source>
+          </Script>
+        </Field>
+        <Field name="username" type="string">
+          <Script>
+            <Source><![CDATA[return identity.getEmail();]]></Source>
+          </Script>
+        </Field>
+        <Field name="provider" type="string" value="enterprise"/>
+      </Section>
+    </Form>
+  </ProvisioningForms>
+  <Schemas>
+    <Schema displayAttribute="username" groupAttribute="" identityAttribute="username" instanceAttribute="" nativeObjectType="user" objectType="account">
+      <AttributeDefinition name="id" type="string">
+        <Description>id</Description>
+      </AttributeDefinition>
+      <AttributeDefinition name="username" type="string"/>
+      <AttributeDefinition name="fullname" type="string"/>
+      <AttributeDefinition name="email" type="string"/>
+      <AttributeDefinition name="firstname" type="string"/>      
+      <AttributeDefinition name="lastname" type="string"/>
+      <AttributeDefinition name="userType" type="string"/>
+      <AttributeDefinition name="idpUsername" type="string"/>
+      <AttributeDefinition entitlement="true" managed="true" name="userLicenseTypeId" schemaObjectType="userLicenseTypeId" type="string"/>
+      <AttributeDefinition name="disabled" type="string"/>
+      <AttributeDefinition multi="true" name="groups" type="string"/>
+      <AttributeDefinition name="provider" type="string"/>
+      <AttributeDefinition multi="true" name="tags" type="string"/>
+      <AttributeDefinition name="tags.department" type="string"/>      
+      <AttributeDefinition name="tags.manager" type="string"/>
+      <AttributeDefinition name="tags.lobDisplayName" type="string"/>
+      <CustomizationRule>
+        <Reference class="sailpoint.object.Rule" name="xxx-Rule-ResourceObjectCustomization-GeoMart"/>
+      </CustomizationRule>
+    </Schema>
+    <Schema aggregationType="group" descriptionAttribute="description" displayAttribute="id" identityAttribute="id" instanceAttribute="" nativeObjectType="userLicenseTypeId" objectType="userLicenseTypeId">
+      <AttributeDefinition name="id" type="string"/>
+      <AttributeDefinition name="name" type="string"/>
+      <AttributeDefinition name="description" type="string"/>
+      <AttributeDefinition name="level" type="string"/>
+      <AttributeDefinition name="state" type="string"/>
+      <AttributeDefinition name="supportsSignInOnlyFromUTApps" type="string"/>
+      <AttributeDefinition name="maxUsers" type="string"/>
+      <AttributeDefinition name="isEsriDefault" type="string"/>
+    </Schema>
+  </Schemas>
+  <ApplicationScorecard/>
+</Application>
+
+##################################
