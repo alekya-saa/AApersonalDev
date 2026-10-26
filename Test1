@@ -1,1 +1,46 @@
 #########
+Authentication and connectivity
+•	The connector is set to “No Authentication” for built-in connector authentication, but a custom Test Connection operation generates an ArcGIS token using a username, password and referer. 
+•	The request is an HTTP POST to /generateToken?f=json, with application/x-www-form-urlencoded data. 
+•	The token and expiry are read from IIQ application attributes. 
+•	Java and connector rules use the stored token for subsequent requests; the Java refresh path calls the connector Test Connection operation when its expiry condition is met.
+Configured base URL: https://geomartcloud-enterprise-dev.nonprod.pge.com/portal/sharing/rest
+
+Heading-- API and connector operations	
+Operation	Implementation / API path
+Test Connection / token	POST /portal/sharing/rest/generateToken
+	
+Account aggregation	GET /portal/sharing/rest/portals/self/users
+Group aggregation	Web Services operation for userLicenseTypes
+Get single user	Web Services Get Object operation
+Create account	POST /portal/portaladmin/security/users/createUser
+Modify account	Java helpers for license, role, tags and GIS assets
+Enable / Disable	Java creates IIQ Enable/Disable plans; connector operations configured
+
+
+Aggregation and account data
+•	Account aggregation uses GET with f=json, a token parameter and a page size of 10. 
+•	The JSON root path is $.users; success is configured as HTTP 200. 
+•	The response maps 
+o	Username, 
+o	id, 
+o	first/last/full name, 
+o	email, 
+o	disabled status,
+o	 userLicenseTypeId, 
+o	userType, 
+o	provider, 
+o	idpUsername, 
+o	groups, and
+o	 tags (including manager, department and lobDisplayName).
+•	Custom Before/After Operation rules inject the token and paginate by incrementing the start offset when a full page is returned. 
+•	Group aggregation is separately configured for license types;
+
+
+Provisioning and lifecycle behavior
+Create: Java first checks for an existing account; if none is found, it constructs a form-encoded request containing the username, requested license, mapped role and other supplied attributes. It submits the ArcGIS Portal Administration API request, checks for JSON status=success, retrieves the created account and synchronizes manager, department and line-of-business tags. An already-existing account is treated as committed without reconciling its requested access.
+Modify: License ADD requests can re-enable disabled accounts. A requested license type is compared with the existing license; changed licenses drive role/license updates. For certain license transitions, the integration also reassigns owned groups and content and removes group memberships. License REMOVE invokes account disablement when no qualifying ADD has already been processed in the attribute-request loop. 
+Enable/Disable: Custom Java creates new IIQ provisioning plans with Enable or Disable account operations and delegates them to the IIQ Provisioner. Enable subsequently checks the account’s disabled attribute via single-account aggregation; Disable does not perform the same explicit post-action verification. License-to-role mapping is held in application attributes, with a default-role fallback.
+
+
+we have postm colle which we can repurpose for Elevate.
