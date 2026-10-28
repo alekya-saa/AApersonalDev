@@ -1,1 +1,8 @@
 #############
+We investigated the BOT account notification issue where rejected requests were incorrectly triggering both rejection and account creation confirmation emails.
+
+During the investigation, we found that the parent Parent workflow was triggering the success notification after the Child workflow which is handling the approval, subprocess completed, without checking the final approval status.
+
+We updated the parent workflow to use rejection decision from child workflow to validate the approval status. Now, if the request is rejected, the workflow skips the success notification and sends only the rejection email.
+
+We have tested both rejection and approval scenarios in TEST, and the email notifications are now behaving as expected.
