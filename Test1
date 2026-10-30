@@ -1,8 +1,12 @@
 #############
-We investigated the BOT account notification issue where rejected requests were incorrectly triggering both rejection and account creation confirmation emails.
+We have completed the initial technical investigation for the NERC Training Expiration Notification requirement.
 
-During the investigation, we found that the parent Parent workflow was triggering the success notification after the Child workflow which is handling the approval, subprocess completed, without checking the final approval status.
+We identified an existing SailPoint notification task, associated rules, training policy libraries, and email template that already support configurable advance notifications and user/manager email delivery. We also confirmed that the existing policy logic evaluates required training and the Revoke on Expired Training entitlement configuration.
 
-We updated the parent workflow to use rejection decision from child workflow to validate the approval status. Now, if the request is rejected, the workflow skips the success notification and sends only the rejection email.
+During the analysis, we identified a potential gap where the current notification process sends reminders even when no affected entitlement is identified. This behavior needs to be validated against the new requirement before making changes.
 
-We have tested both rejection and approval scenarios in TEST, and the email notifications are now behaving as expected.
+In TEST, we successfully validated the SAP Training Module JDBC Preview and identified training records expiring within the next 30 days.
+
+Next steps: Identify records matching the exact 30/15/7-day milestones, execute the existing notification task in scan-only mode, validate the results and entitlement eligibility, and finalize any required code or email-template changes before end-to-end testing.
+
+No changes have been deployed, and notification testing is still pending.
