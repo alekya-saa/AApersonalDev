@@ -1,12 +1,90 @@
 #############
-We have completed the initial technical investigation for the NERC Training Expiration Notification requirement.
+Training Expiration Notification Enhancement – Status Update
 
-We identified an existing SailPoint notification task, associated rules, training policy libraries, and email template that already support configurable advance notifications and user/manager email delivery. We also confirmed that the existing policy logic evaluates required training and the Revoke on Expired Training entitlement configuration.
+We have completed the development and initial validation of the dynamic training-expiration notification enhancement in SailPoint IIQ.
 
-During the analysis, we identified a potential gap where the current notification process sends reminders even when no affected entitlement is identified. This behavior needs to be validated against the new requirement before making changes.
+Existing Rules and Task Reviewed (Baseline):
 
-In TEST, we successfully validated the SAP Training Module JDBC Preview and identified training records expiring within the next 30 days.
+* Notification Rule: PGE-Rule-RuleExecutor-TrainingExpirationNotification
+* Training Data Library: SAP Training Table Rule Library
+* Training Policy Library: SAP Training Policy Rule Library
+* Email Template: PGE-EmailTemplate-Training-Warning
+* Existing Task: Test- NERC Training Expiration Notification
+* Task Type: Notify Users of Expiring Training
 
-Next steps: Identify records matching the exact 30/15/7-day milestones, execute the existing notification task in scan-only mode, validate the results and entitlement eligibility, and finalize any required code or email-template changes before end-to-end testing.
+Enhanced Rule and Task Used for Testing:
 
-No changes have been deployed, and notification testing is still pending.
+* Dynamic Notification Rule: PGE-Rule-RuleExecutor-TrainingExpirationNotification-Dynamic
+* TEST Task: Test- NERC Training Expiration Notification (updated to reference the dynamic rule)
+
+Work Completed:
+
+* Reviewed the existing NERC training notification rule, associated SAP training libraries, entitlement dependency logic, email template, and task configuration to understand the existing notification process.
+* Enhanced the notification logic to dynamically identify applicable training courses from the training database instead of maintaining individual course IDs in the task configuration.
+* Implemented notification filtering for 30, 15, and 7 days before training expiration.
+* Successfully validated dynamic training-course discovery, user identification, identity correlation, and training-dependent entitlement evaluation.
+* Validated the existing email notification behavior in TEST, including standard training reminders and conditional access-revocation warnings.
+* Successfully executed the enhanced dynamic rule through the TEST TaskDefinition in scan-only mode. The task completed successfully, identifying 2 users across 2 training courses, with no processing errors reported in the earlier diagnostic and no emails sent during task execution.
+
+Current Status:
+
+Development and initial scan-only validation completed successfully. The enhanced rule is functioning through the existing SailPoint notification task framework.
+
+Next Steps:
+
+* Perform controlled end-to-end email notification testing using TEST email redirection.
+* Validate notification recipients, manager CC, email content, and conditional entitlement-revocation warnings.
+* Review task execution performance and complete final UAT validation.
+* Proceed with Production deployment following successful validation, approval, and standard change management.
+
+
+
+#######################
+Status Update – 03-Nov-2026
+
+Enhanced the SailPoint IIQ training-expiration notification rule to dynamically discover applicable training courses and identify users whose training expires within 30, 15, or 7 days.
+
+Completed TEST validation of course discovery, training-user lookup, identity correlation, and entitlement-impact evaluation using existing SAP training rule libraries.
+
+Successfully executed the enhanced rule through the TEST TaskDefinition in scan-only mode. The task completed with 2 matching users across 2 courses, zero identified access-impact cases, and no emails sent.
+
+Next Steps: Controlled email notification testing, recipient/CC and template validation, performance review, and final UAT before Production deployment.
+####################
+
+STAR Aclara Integration Rewrite (MEAPROJ-2967) – Status Update
+
+We have completed the initial technical investigation of the existing STAR Aclara integration in SailPoint IIQ.
+
+Work Completed:
+
+* Reviewed the existing JDBC application STAR Aclara, including connection settings, account/group schemas, correlation mappings, and aggregation configurations.
+* Analyzed the provisioning rule PGE-Rule-JDBC-STARAclara-Provision and referenced library PGE-RuleLibrary-STARAclara.
+* Confirmed that SailPoint inserts provisioning requests into the RPA staging table RPASTAGINGDB.PGE.USER_STARACLARAACCOUNT, which are subsequently handled through the Blue Prism integration.
+* Identified the existing provisioning logic for account creation, entitlement assignment/revocation, and account disable/delete operations.
+* Confirmed that account and entitlement aggregation uses the reconciliation table PGE.STARACLARA_RECON.
+* Reviewed the existing correlation configuration STAR Aclara Correlation, which maps USER_ID to SailPoint identity attributes corpID and name.
+* Tested JDBC connectivity in TEST and QA; both environments failed with SQL Server TCP/IP connection errors on port 1433. PROD connectivity remains unverified due to access restrictions.
+
+Key Artifacts Identified:
+
+* Application: STAR Aclara (JDBC)
+* Provisioning Rule: PGE-Rule-JDBC-STARAclara-Provision
+* Referenced Rule Library: PGE-RuleLibrary-STARAclara
+* Correlation Configuration: STAR Aclara Correlation
+* Provisioning Staging Table: RPASTAGINGDB.PGE.USER_STARACLARAACCOUNT
+* Aggregation/Reconciliation Table: PGE.STARACLARA_RECON
+
+Pending Clarifications:
+
+* Confirmation from the STAR Aclara team regarding support for direct database provisioning or an alternative supported integration method.
+* Target database schema, account/role mappings, and required service account permissions.
+* Confirmation of supported account lifecycle operations and existing Blue Prism processing.
+* Impact of the upcoming network migration and SSO changes.
+* Investigation of TEST/QA database connectivity failures.
+
+Next Steps:
+
+We will discuss the proposed integration approach with the STAR Aclara, DBA, and infrastructure teams in the upcoming meeting. Based on their confirmation of database access, supported provisioning methods, and technical requirements, we will finalize the integration design and proceed with development and testing.
+
+Current Status: Initial SailPoint-side technical assessment completed. Awaiting target application technical confirmation and connectivity validation.
+######################
