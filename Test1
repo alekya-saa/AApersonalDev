@@ -1,1 +1,208 @@
 ###################
+SailPoint IIQ Training Expiration Notification Enhancement
+1. Executive overview and presentation objective
+The enhancement extends the existing NERC training-expiration notification framework so that the SailPoint IdentityIQ task can dynamically discover training courses approaching expiration, rather than relying on manually maintained course IDs. The configured reminder intervals are 30, 15, and 7 days. The work reuses existing SAP training table and policy rule libraries, identifies the relevant SailPoint identities, evaluates training-dependent entitlements, and supports email preparation through the existing notification template.
+The scrum walkthrough should answer Sanjay’s key question: where the training data comes from, how the new rule retrieves it, what each existing library does, and which behavior has been tested. It must distinguish notification from actual entitlement revocation and distinguish validated behavior from remaining scope requirements.
+Suggested opening statement
+We reviewed the existing NERC training notification framework and enhanced it to discover applicable courses directly from the TRAINING table. The rule finds courses expiring in 30, 15, or 7 days, uses the existing SAP Training Table Rule Library to retrieve affected users, and uses the SAP Training Policy Rule Library to identify their training-dependent entitlements. The enhanced rule has executed successfully through the TEST TaskDefinition in scan-only mode. We are now aligning the final notification eligibility filter with the revocation-enabled entitlement requirement and completing controlled email testing.
+2. Existing components and artifacts
+Artifact	Name / purpose
+Original notification rule	PGE-Rule-RuleExecutor-TrainingExpirationNotification
+Enhanced dynamic rule	PGE-Rule-RuleExecutor-TrainingExpirationNotification-Dynamic
+Training data library	SAP Training Table Rule Library
+Training policy library	SAP Training Policy Rule Library
+Email template	PGE-EmailTemplate-Training-Warning
+TEST TaskDefinition	Test- NERC Training Expiration Notification
+Task type	Notify Users of Expiring Training
+TEST entitlement	SAP ECC / Roles / Test_NERC_Entitlement1
+TEST identity and course	K2VX / CORP-0350WBT
+The original notification rule and task provided the baseline. The dynamic rule adds course discovery and reuses the library methods. Verify the exact saved rule name and the TaskDefinition ruleName reference before presenting or executing.
+3. End-to-end architecture and data flow
+1. Existing SAP training integration retrieves/parses SAP training records and synchronizes them to the TRAINING database table.
+2. The enhanced rule queries TRAINING to discover distinct COURSE_ID values with expiration dates at the configured offsets.
+3. For each course and target expiration date, getUsersToNotify(courseId, expDate, context) returns matching CORPID values.
+4. The rule resolves each CORPID to a SailPoint Identity using context.getObjectByName(Identity.class, corpID).
+5. getAccessLostIfTrainingExpires(identity, courseId) checks the identity’s assigned entitlements against training-policy metadata.
+6. The final notification eligibility decision should restrict messages to users with qualifying revoke-on-expired-training entitlements, as required by JIRA.
+7. When enabled and approved, the rule prepares the existing email template and recipient/manager CC; scan-only mode does not send email.
+Important: the notification rule does not directly call the SAP web service to retrieve training records; it reads the existing database. The source SAP integration is separate from the notification execution.
+4. SAP Training Table Rule Library — detailed explanation
+4.1 Purpose and responsibilities
+This existing library supports the training data lifecycle and provides database lookup methods used by notification and governance processes. Reviewed code includes parsing/synchronization of training records received from SAP and retrieving users whose specified course expires on a specified date. The dynamic enhancement reuses the read-side method; it does not modify training records.
+4.2 TRAINING table fields
+Column	Meaning
+CORPID	Employee / identity identifier used for correlation
+COURSE_ID	Training course identifier
+COURSE_TYPE_ID	Training classification
+STATUS	Training record status
+EXPIRES	Expiration date
+CREATED_ON	Creation timestamp
+LAST_MODIFIED	Last modification timestamp
+4.3 Key method: getUsersToNotify()
+getUsersToNotify(thisCourseId, expDate, context);
+The method uses a parameterized JDBC query to return CORPIDs whose COURSE_ID and EXPIRES match the supplied values:
+SELECT CORPID
+FROM TRAINING
+WHERE COURSE_ID = ?
+  AND EXPIRES = ?;
+The dynamic rule calculates the expiration date in dd-MMM-yy format for compatibility with the existing method. It then correlates each returned CORPID to an Identity. A lookup match indicates an expiring training record, not automatically a revocation-eligible user.
+4.4 SAP data synchronization
+The reviewed library also contains SAP training-record parsing and synchronization logic, including insert/update handling when records are new or change. For illustration, the update path uses the record identifier and course to target a row:
+UPDATE TRAINING
+SET COURSE_TYPE_ID = ?, EXPIRES = ?,
+    LAST_MODIFIED = ?, CREATED_ON = ?
+WHERE CORPID = ? AND COURSE_ID = ?;
+This is existing synchronization behavior, not part of the notification enhancement. Avoid claiming a particular upsert outcome or job schedule without checking the full integration configuration.
+5. SAP Training Policy Rule Library — detailed explanation
+5.1 Purpose
+This existing library evaluates the training requirements associated with an entitlement or role and the identity’s training status. It supports decisions about training-based access authorization and identifies entitlements potentially affected by an expiring course.
+5.2 getAccessLostIfTrainingExpires(identity, courseId)
+List entitlementsToBeRevoked =
+    getAccessLostIfTrainingExpires(nextIdentity, thisCourseId);
+The reviewed implementation iterates the identity’s IdentityEntitlement objects, resolves each to its corresponding ManagedAttribute or Bundle, determines required training via getRequiredTrainingFromEntity(), and returns the entitlements associated with the specified course. The returned list is a potential access-impact list; the method does not create a provisioning plan or remove access.
+5.3 getRequiredTrainingFromEntity(entity, identity)
+The library derives training requirements from entitlement/role metadata. Relevant fields observed during review include:
+Metadata	Role in training governance
+requiredCourse	Course identifier(s) associated with the entitlement
+revokeOnExpTraining	Flag indicating revocation-on-expiration policy
+nercBcsiAccess	NERC BCSI-specific training conditions
+nercBesEacmsPacsAccess	NERC BES-specific training conditions
+hippaTrainingRequired	HIPAA-related training conditions
+For the custom requiredCourse path, the reviewed logic checks revokeOnExpTraining before including the course. However, NERC/HIPAA-specific branches have additional conditions; the entire library must be reviewed before asserting that every returned entitlement has revokeOnExpTraining=true. This matters because JIRA requires notification only for revocation-enabled entitlements.
+5.4 authorizedForAccess()
+This method evaluates whether an identity meets the training-related conditions for access, including applicable active training and NERC-specific conditions. It supports authorization decisions; it is not itself a revocation executor. Identify its callers and any separate enforcement task/workflow before claiming automatic removal is operational.
+6. What the dynamic enhancement changes
+6.1 Previous vs enhanced approach
+Area	Existing baseline	Dynamic enhancement
+Course selection	Course IDs manually listed in task configuration	Discover applicable COURSE_ID values from TRAINING
+Expiration intervals	Task-configured day offsets	Required 30, 15, and 7 days
+User lookup	Existing getUsersToNotify()	Reused unchanged
+Entitlement impact	Existing policy library	Reused unchanged
+Email	Existing template and delivery logic	To be validated with final eligibility filter
+6.2 Dynamic discovery query
+SELECT DISTINCT COURSE_ID
+FROM TRAINING
+WHERE COURSE_ID IS NOT NULL
+  AND EXPIRES IS NOT NULL
+  AND DATEDIFF(DAY, CAST(GETDATE() AS DATE),
+      CAST(EXPIRES AS DATE)) IN (30, 15, 7)
+ORDER BY COURSE_ID;
+In the implemented rule, the IN-list is constructed using parameter placeholders and bound via PreparedStatement. The query selects distinct courses with at least one matching expiration date, not every course in the database. User matching happens in the subsequent library call. Check SQL Server date vs IIQ application server date/time-zone consistency before production rollout.
+6.3 Processing and email decision
+List usersToNotify = getUsersToNotify(
+    thisCourseId, expDate, context);
+Identity nextIdentity = context.getObjectByName(
+    Identity.class, corpID);
+List entitlementsToBeRevoked =
+    getAccessLostIfTrainingExpires(
+        nextIdentity, thisCourseId);
+The current tested logic identifies users and calculates impact. To meet the clarified JIRA scope, the final notification gate must ensure that the user has an assigned entitlement whose required course matches the expiring course and whose Revoke on Expired Training setting is enabled. Merely finding an expiring course or a nonempty potential-impact list may be insufficient until the library’s special branches are validated.
+7. Two email outcomes and JIRA scope clarification
+During earlier controlled TEST email validation, K2VX received an expiration reminder containing a conditional access-impact warning for Test_NERC_Entitlement1, whereas MDV6 received a general expiration reminder without an access-impact table. This occurred because the baseline notification logic can email users regardless of whether an entitlement is at risk.
+The clarified JIRA scope is narrower: notify only users who hold an entitlement configured for revocation on expired training, with the corresponding training approaching expiration. Therefore, a general reminder-only user such as MDV6 should be excluded unless another qualifying entitlement is found. This final eligibility filter remains to be implemented/validated before production.
+8. TEST entitlement configuration and proof
+Field	Test value
+Application	SAP ECC
+Entitlement attribute	Roles
+Entitlement	Test_NERC_Entitlement1
+Required Course	CORP-0350WBT
+Revoke on Expired Training	Enabled / true
+Assigned test identity	K2VX
+The single-identity diagnostic invoked getAccessLostIfTrainingExpires(K2VX, CORP-0350WBT) and returned one potentially impacted entitlement. This validates impact identification, not actual access revocation. The TEST entitlement metadata should be reviewed and reverted if the changes were only temporary for UAT.
+9. Validation history and results
+9.1 Component-level diagnostics
+•	Dynamic course discovery succeeded inside the enhanced rule.
+•	Training user lookup succeeded across discovered courses; an earlier diagnostic returned 3 courses and 7 matching records.
+•	Single-identity entitlement evaluation for K2VX returned 1 impacted entitlement.
+•	Combined processing initially produced generic SailPoint errors; diagnostic isolation identified variable mismatches/duplicate entitlement blocks and examined identity decaching.
+•	Combined read-only diagnostic eventually succeeded with entitlement evaluation enabled and decaching temporarily disabled. The object lifecycle still requires review.
+9.2 TEST TaskDefinition scan-only execution
+Metric	4 Nov 2026 verified result
+Execution status	Success
+Training mode	ALL
+Courses processed	4
+Matching training records	9
+Identities found	9
+Identities missing	0
+Unique users identified	9
+Records with access impact	0
+Processing errors	0
+Emails sent	0
+Notification mode	SCAN ONLY
+The TaskResult XML verified these counters. The nine users are detected/eligible for examination under the current logic; they are not nine confirmed JIRA-eligible notification recipients. The zero access-impact count is not evidence that the training-governance policy is fully enforced.
+9.3 Task-based execution context
+Direct Object Browser Rule Runner does not automatically provide the task variables config and taskResult. The final task-oriented rule reads config.get("daysBeforeExpToNotify"), config.get("trainingMode"), and config.get("scanOnly") and writes TaskResult attributes. It should be tested through the TEST TaskDefinition rather than modifying task-specific code to suit direct Rule Runner execution.
+10. Notification vs actual access revocation
+The enhanced notification rule discovers courses, looks up users, evaluates possible entitlement impact, and prepares/submits emails when enabled. getAccessLostIfTrainingExpires() only returns a list of entitlements; it does not perform provisioning or entitlement removal. The existence, caller path, scheduling, and effectiveness of a separate training-expiration revocation mechanism remain unverified.
+For scrum: say “We have validated notification-related identification and access-impact assessment, not actual access revocation.”
+11. Outstanding work and risk controls
+•	Implement/verify strict filtering to entitlements with revokeOnExpTraining=true and matching requiredCourse, including NERC/HIPAA branches.
+•	Confirm the actual enforcement path for training-based access revocation and test it separately if in scope.
+•	Confirm TEST email redirection covers both To and manager CC before disabling scanOnly or enabling allowEmailSending.
+•	Perform controlled end-to-end dynamic email test, verify content and delivery, and restore scanOnly=true and email safety flag afterward.
+•	Validate manager CC, handling of missing email, duplicate suppression, course/user matching, and error reporting.
+•	Review task runtime and SQL/app-server date consistency.
+•	Review identity decaching/object lifecycle before production.
+•	Complete UAT, change approval, deployment and rollback plan.
+12. Scrum meeting walkthrough (10–15 minutes)
+Time	Demonstration	Evidence
+2 min	Explain baseline and scope	Original rule, task, libraries
+3 min	Show data source and SQL discovery	TRAINING table fields and PreparedStatement query
+3 min	Explain two library calls	getUsersToNotify and getAccessLostIfTrainingExpires
+3 min	Show entitlement TEST configuration and output	K2VX, Test_NERC_Entitlement1, impacted=1
+2 min	Show TaskResult XML	4 courses, 9 records, 0 errors, scan-only
+2 min	Clarify remaining work	Revocation-only filter, email UAT, enforcement verification
+13. Anticipated questions from Sanjay
+How are we pulling all training data?
+The existing SAP training integration populates TRAINING. The enhanced rule queries that table; it does not call SAP directly during notification processing.
+Are we scanning all trainings?
+We discover distinct courses with expiration dates at 30, 15, or 7 days. We then look up matching CORPIDs for each course/date.
+Why use two libraries?
+The Table Library answers whose training expires; the Policy Library answers which assigned entitlements depend on that training.
+What changed in code?
+Dynamic course discovery was added; existing user lookup, policy evaluation, and email framework were reused.
+Are we notifying everyone with expiring training?
+The current baseline can do that, but the clarified JIRA scope requires revocation-enabled entitlement filtering; this final gate is pending.
+Are we revoking access?
+No, this notification rule does not revoke. The separate enforcement mechanism has not yet been verified.
+What is proven?
+Task-based scan-only success: four courses, nine matching records, nine identities, zero processing errors, zero emails. Earlier test demonstrated one impacted entitlement for K2VX.
+What remains?
+Strict JIRA eligibility filtering, controlled email testing, manager CC checks, performance/object lifecycle review, UAT, and revocation-path verification.
+14. Ready-to-speak scrum closing
+The dynamic course-discovery enhancement and scan-only TaskDefinition execution have passed in TEST. Our latest verified run identified nine matching training records across four courses and resolved all nine identities without processing errors or sending emails. We also confirmed entitlement-impact detection on a controlled test entitlement. Before final sign-off, we need to enforce the JIRA-specific rule that only revocation-enabled entitlement holders receive notifications, validate controlled email delivery and manager CC, and separately confirm how actual access revocation is enforced.
+
+
+########################
+GeoMart Integration – Java Code Walkthrough
+1	Java class structure and initialization
+1.1	Class and dependencies (lines 1–65)
+GeoMartIntegrationConfigExecutor is a custom Java class that works with SailPoint IdentityIQ. It uses SailPoint objects to process provisioning requests, the Web Services connector to read accounts, and an HTTP client to call ArcGIS APIs. Separate helper classes manage users, roles, groups and tags. The class also refers to a GeoMart-specific email template.
+1.2	configure() (lines 187–192)
+This method saves the SailPoint context and calls the parent class setup method. It does not select the target application here. That happens when the provisioning request is processed.
+1.3	Application selection (around line 210)
+When an account request arrives, the code reads the application name from that request and loads the matching application in IIQ. This means the same executor can potentially work with different ArcGIS applications, although the helper code and settings still need to be checked.
+2	Method-by-method walkthrough
+2.1	updateRequestStatus() (approximately lines 72–159)
+This method checks the status of an identity request against what is actually present on the ArcGIS account. It looks up the request, reads the account and compares the requested license with the license assigned to the user. We noticed a condition involving the request ID that may not handle null values correctly, so it needs a code review.
+2.2	aggregateSingleAccount() (lines 162–183)
+This method uses the Web Services connector to fetch one ArcGIS account by its username or native identity. It is used to check whether a user already exists and to confirm account changes. It depends on the application’s Get Object operation being configured correctly.
+2.3	provision() (lines 195–255)
+This is the main entry point for provisioning. It reads the account requests, identifies the target application and sends Create requests to create() and Modify requests to modify(). It also records success, failure or retry status. Error handling should be tested, especially when a plan contains more than one request.
+2.4	create() (lines 426–540)
+First, the method checks whether the account already exists. If it does, the request is marked successful without checking whether the existing account has the right license or role. For a new user, it prepares the account details, adds the license and mapped role, and calls the ArcGIS createUser API. After a successful response, it reads the account again and updates extra tags such as manager, department and business unit. So account creation involves several steps, not just one API call.
+2.5	modify() (lines 257–423)
+This method handles license changes and user tag updates. When a license is added, it may first enable a disabled account, compare the current license and then update the license and role. Some changes also require group membership or content ownership updates. When a license is removed, the code may disable the account if no Add operation was processed. That does not necessarily mean the user has no remaining access, so this behavior needs careful testing.
+2.6	getToken() (lines 543–569)
+This method reads the ArcGIS token stored in the application settings. When it decides the token needs refreshing, it runs the connector’s Test Connection operation and reads the new token. The expiry calculation appears to refresh later than intended, so token timing and missing expiry values should be validated. Tokens should not appear in logs.
+2.7	getBaseUrl() and getUrlForCreate() (lines 572–588)
+getBaseUrl() reads the REST base URL from the selected IIQ application. getUrlForCreate() builds the ArcGIS user creation URL using the Portal hostname and token. We should avoid exposing the token in logs or unnecessary URL strings.
+2.8	getRoleFromLicense() (lines 609–620)
+This method finds the Portal role associated with the requested license using application settings. If no mapping is found, it uses a default role and then a hardcoded fallback. For ELEVATE, the team should approve each license-to-role mapping and decide what should happen if a mapping is missing.
+2.9	enableAccount() and disableAccount() (lines 622–684)
+These methods do not call the ArcGIS APIs directly. They create new SailPoint provisioning requests and let the IIQ Provisioner run the configured Web Services Enable or Disable operation. Enable checks the account again afterward; Disable appears to return success without the same verification.
+2.10	generateRequestId() (lines 592–606)
+This method reads the identity request ID from the provisioning plan. The ID helps connect provisioning activity back to the original SailPoint request. We should also check what happens when provisioning runs without an identity request ID.
+
+
+#######################
