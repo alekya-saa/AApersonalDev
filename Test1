@@ -1,1 +1,123 @@
 ####################
+NERC Training Expiration Notification
+1. Requirement and architecture
+Enhance the existing notification process to warn users 30, 15 and 7 days before training expiration, only when they hold an entitlement whose requiredCourse contains the expiring course and whose revokeOnExpTraining flag is enabled. The notification process does not revoke access; existing enforcement remains separate.
+2. Artifact inventory
+Artifact	Function / status
+PGE-Rule-RuleExecutor-TrainingExpirationNotification	Original rule; reviewed
+PGE-Rule-RuleExecutor-TrainingExpirationNotification-Dynamic	Enhanced core notification rule; tested
+SAP Training Table Rule Library	Existing LMS lookup methods; reused
+SAP Training Policy Rule Library	Existing entitlement/training policy evaluation; reused
+PGE-Rule-TrainingGovernanceInventory	Read-only LMS inventory; developed
+TEST-Rule-TrainingExpiration	Read-only expiration diagnostic; developed
+Test-Rule-TrainingEntitlementMapping	Read-only entitlement/catalog diagnostic; developed
+Test- NERC Training Expiration Notification	TaskDefinition and TaskResult used for validation
+PGE-EmailTemplate-Training-Warning	Existing warning email template; reused
+Test_NERC_Entitlement1	SAP ECC catalog test entitlement; configured
+3. Core enhanced notification rule
+3.1 Configuration
+String daysBefore = "30,15,7";
+String trainingMode = "ALL";
+String scanOnly = (String) config.get("scanOnly");
+boolean isScanOnly = "true".equalsIgnoreCase(scanOnly);
+The scanOnly setting is task-controlled. In the last shared source, the 30/15/7 intervals and ALL mode are still hardcoded; do not describe them as fully task-driven. The rule validates scanOnly and uses a separate allowEmailSending safety flag.
+3.2 Dynamic course discovery
+SELECT DISTINCT COURSE_ID FROM TRAINING
+WHERE COURSE_ID IS NOT NULL AND EXPIRES IS NOT NULL
+AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), CAST(EXPIRES AS DATE)) IN (?,?,?)
+ORDER BY COURSE_ID
+The rule obtains a JDBC connection via context.getJdbcConnection(), binds the notification intervals, and discovers distinct courses with training records in the relevant date windows. DISTINCT avoids processing the same course repeatedly simply because many users hold it.
+3.3 Training record retrieval and identity resolution
+getUsersToNotify(courseId, expirationDate, context);
+The existing SAP Training Table Rule Library queries TRAINING for CORPID where COURSE_ID and EXPIRES match. Each returned corporate ID is resolved to a SailPoint Identity; missing identities are tracked.
+3.4 Policy evaluation and new eligibility gate
+getAccessLostIfTrainingExpires(nextIdentity, thisCourseId);
+The SAP Training Policy Rule Library iterates IdentityEntitlement records, resolves ManagedAttribute or Bundle metadata using getManagedAttributeOrBundle(), and derives training requirements through getRequiredTrainingFromEntity(). Existing NERC/HIPAA flags can identify training-dependent access independently of the explicit revoke checkbox.
+boolean revokeEnabled = Util.otob(attrs.get("revokeOnExpTraining"));
+String requiredCourse = (String) attrs.get("requiredCourse");
+if (!revokeEnabled || Util.isNullOrEmpty(requiredCourse)) continue;
+List requiredCourses = Util.csvToList(requiredCourse);
+if (requiredCourses.contains(thisCourseId)) qualifyingEntitlements.add(identityEnt);
+This additional filter enforces the JIRA-specific conditions. The list of potentially impacted access is replaced by the qualifying list. If no qualifying entitlement remains, the identity/course notification is skipped.
+requiredCourse	revoke flag	Expiring course	Eligible?
+CORP-9124WBT	true	CORP-9124WBT	Yes
+CORP-9124WBT	false	CORP-9124WBT	No
+CORP-0350WBT	true	CORP-9124WBT	No
+(blank)	true	CORP-9124WBT	No
+3.5 Scan-only and email processing
+With scanOnly=true, training and access evaluation proceed but email submission is bypassed. With scanOnly=false and the safety guard permitting sending, the rule loads PGE-EmailTemplate-Training-Warning, constructs EmailOptions and template arguments, optionally CCs the identity manager, and calls context.sendEmailNotification(template, options). A successful send call increments emailsSent, but does not prove SMTP delivery.
+4. Existing supporting libraries
+SAP Training Table Rule Library
+SELECT CORPID FROM TRAINING WHERE COURSE_ID = ? AND EXPIRES = ?
+Separates LMS user lookup from course discovery. Reuse avoids introducing duplicate training-to-identity correlation logic.
+SAP Training Policy Rule Library
+•	getAccessLostIfTrainingExpires(identity, courseNum): retrieves IdentityEntitlement records, resolves the entitlement/role, and collects access dependent on the expiring course.
+•	getRequiredTrainingFromEntity(entity, identity): reads requiredCourse and revokeOnExpTraining, as well as existing nercBcsiAccess, nercBesEacmsPacsAccess and hippaTrainingRequired flags.
+•	Uses incremental iteration, decache, and iterator cleanup; session handling and re-resolution of metadata merit review.
+5. Diagnostic rules developed
+5.1 PGE-Rule-TrainingGovernanceInventory
+SELECT COURSE_ID, COUNT(*) AS TotalRecords,
+COUNT(DISTINCT CORPID) AS UniqueUsers,
+MIN(EXPIRES) AS EarliestExpiration, MAX(EXPIRES) AS LatestExpiration
+FROM TRAINING WHERE COURSE_ID IS NOT NULL
+GROUP BY COURSE_ID ORDER BY COURSE_ID
+Course	Training records
+CORE-9006WBT	706
+CORP-0350WBT	4,930
+CORP-0804WBT	7,669
+CORP-9124WBT	5,469
+NERC-9077WBT	4,297
+Inventory: 23,071 training records, 5 courses, 13,869 distinct CORPIDs. The 9999-12-31 expiration value appears for some courses and should be clarified as a possible sentinel. This is a read-only inventory rule, not a runtime notification dependency.
+5.2 TEST-Rule-TrainingExpiration
+Queries selected CORPIDs for course IDs, EXPIRES, and DATEDIFF days left, initially restricting to exact 7/15/30-day windows. It confirmed candidate identities and highlighted that results change day to day as expiration dates move outside exact-day intervals. Later debugging removed the date filter to inspect remaining days directly.
+5.3 Test-Rule-TrainingEntitlementMapping
+Retrieves IdentityEntitlement records for each selected identity using QueryOptions with identity.id, then resolves catalog ManagedAttribute records by application, attribute and value. It reports requiredCourse and revokeOnExpTraining without filtering on the checkbox. In this IIQ environment, IdentityEntitlement.getApplication() worked whereas getApplicationName() did not.
+Diagnostic metric	Result
+Identities checked	7
+Assigned entitlement records	246
+Catalog matches	236
+Direct requiredCourse mappings found	0
+Unmatched entitlement records	10
+Limitations: unmatched catalog records and inherited/flag-based training requirements are not comprehensively represented. The diagnostic output must not be interpreted as proof that all training-dependent access is absent.
+6. Positive test setup and evidence
+Test element	Configuration / observation
+Identity	JX45
+Application	SAP ECC
+Entitlement	Test_NERC_Entitlement1
+requiredCourse	CORP-9124WBT
+revokeOnExpTraining	true
+Training expiration	Matched 7-day window during positive test
+Provisioning transaction	Add Roles reported committed
+Target-system warning	SAP ECC reported TEST_NERC_ENTITLEMENT1 role does not exist
+The entitlement appeared in SailPoint Identity Warehouse with a warning indicator. The positive test demonstrates IIQ eligibility detection, not successful SAP target-system provisioning or eventual revocation.
+Execution	Users found	Qualifying removable access	Emails submitted
+Baseline scan-only	7	0	0
+Positive scan-only after TEST assignment	7	1	0
+Non-scan-only run	7	1	1 (submission only)
+Later date-sensitive run	1	0	0
+The non-scan-only run showed one email submitted but no confirmed receipt in the configured Global Settings redirect mailbox. Later exact-day results narrowed as dates advanced; further query validation is appropriate before attributing changes solely to timing.
+7. Code review risks and recommendations
+•	Keep configuration claims precise: scanOnly is task-driven, while daysBefore and trainingMode were hardcoded in the last reviewed source.
+•	Validate multi-value requiredCourse parsing, whitespace, duplicate training records, and duplicate notifications for a user/course.
+•	Check behavior when metadata resolution returns null, Bundle rather than ManagedAttribute, or an unmatched catalog record.
+•	Separate counters for scanned users, qualifying users, submitted emails and confirmed delivery; allUsersNotified previously included users who received no email.
+•	Validate date semantics (SQL Server calendar-day boundaries, time zones, and exact 7/15/30 matching).
+•	Review manager CC and global redirect behavior before any unrestricted non-scan-only execution.
+•	Retain isolation between warning notification and existing revocation enforcement.
+•	Investigate the SAP ECC test-role warning separately; do not claim target provisioning succeeded.
+8. Remaining tests and deployment gates
+•	Negative test: uncheck revokeOnExpTraining for a controlled entitlement, rerun scan-only, and confirm exclusion; restore metadata afterward.
+•	End-to-end email test: verify intended recipient, manager CC suppression/redirect, SMTP handoff and actual mailbox receipt.
+•	Regression tests: multiple users/courses, multiple entitlements, missing identities, no catalog match, missing manager/email, and duplicate training records.
+•	Review task configuration and safety flags before promoting changes beyond TEST.
+9. Review meeting talk track
+We enhanced the existing IIQ NERC notification rule to discover expiring training courses from the LMS database and identify users through the existing table library. We reused the policy library to identify training-dependent access, then added a stricter entitlement-level filter requiring a matching requiredCourse and revokeOnExpTraining=true. We also introduced task-controlled scan-only execution to validate eligibility without sending emails. To support testing, we built read-only inventory, expiration, and entitlement-mapping diagnostics. The positive TEST scan increased the qualifying access count from zero to one after assigning a controlled entitlement, with zero emails sent as expected. A later non-scan-only run submitted one warning email, but receipt has not been verified. Negative checkbox testing, delivery verification, and regression checks remain before deployment.
+10. Likely reviewer questions
+Why separate dynamic rule? To isolate enhancement testing and compare with original behavior before deployment.
+Why use both libraries? Table library finds training users; policy library evaluates training dependencies of assigned access.
+Why add another filter? Existing NERC/HIPAA mappings can mark access as training-dependent without meeting the explicit JIRA checkbox requirement.
+Does it revoke access? No; it sends advance warnings. Existing enforcement handles revocation.
+What proved positive behavior? Qualifying access count changed from 0 to 1 in scan-only TEST after configuring the matching entitlement.
+Why did counts drop later? Exact calendar-day filters are date-sensitive; verify database today and DaysLeft to confirm.
+Was email delivered? One send was submitted successfully, but mailbox delivery was not confirmed.
+What remains? Negative testing, recipient/SMTP delivery, edge cases, and regression review.
