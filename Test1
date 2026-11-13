@@ -1,1 +1,169 @@
 ######################
+Training Expiration Notification Enhancement – Manager Update
+
+Status: Development completed; positive eligibility testing validated in TEST using scan-only mode.
+
+1. Requirement and Existing Framework Analysis
+
+We reviewed the existing training expiration notification framework in SailPoint IdentityIQ to enhance notifications based on entitlement-level training requirements.
+
+The requirement is to send training expiration reminders 30, 15, and 7 days before expiration, specifically to users holding entitlements where:
+
+* requiredCourse matches the expiring training course.
+* revokeOnExpTraining is enabled.
+* The entitlement is assigned to the corresponding identity.
+
+The notification must inform users about their expiring training and the potential access impact. The existing access-revocation process remains separate; this enhancement does not directly revoke entitlements.
+
+We reviewed the existing PGE-Rule-RuleExecutor-TrainingExpirationNotification, along with the SAP Training Table Rule Library and SAP Training Policy Rule Library, to understand training record retrieval, entitlement evaluation, notification generation, and manager CC handling.
+
+2. Dynamic Notification Rule Enhancement
+
+We developed the enhanced TEST rule:
+
+PGE-Rule-RuleExecutor-TrainingExpirationNotification-Dynamic
+
+The following enhancements were implemented:
+
+* Introduced dynamic discovery of training courses from the TRAINING database instead of relying on a static course list.
+* Configured notification intervals for 30, 15, and 7 days before expiration.
+* Added entitlement eligibility validation using requiredCourse and revokeOnExpTraining.
+* Ensured that notifications are considered only when an identity holds an entitlement matching the expiring course and the revoke-on-expiration flag is enabled.
+* Retained the existing warning email template, PGE-EmailTemplate-Training-Warning.
+* Added scan-only functionality to validate qualifying identities and entitlement impact without sending emails.
+* Configured scanOnly dynamically through the TaskDefinition.
+
+The existing policy library method getAccessLostIfTrainingExpires() is reused to identify potentially impacted access, followed by additional validation of the entitlement metadata.
+
+3. Training Database Analysis
+
+We created the following diagnostic rules:
+
+PGE-Rule-TrainingGovernanceInventory
+
+Used to retrieve course-level training inventory from the database.
+
+TEST-Rule-TrainingExpiration-7Users
+
+Used to identify training records expiring within the configured notification intervals.
+
+The inventory analysis identified:
+
+Metric	Result
+Total training records	23,071
+Distinct training courses	5
+Distinct users in training data	13,869
+
+The courses identified were CORE-9006WBT, CORP-0350WBT, CORP-0804WBT, CORP-9124WBT, and NERC-9077WBT.
+
+We also validated the JDBC connectivity and successfully retrieved training expiration details for selected TEST identities.
+
+4. Entitlement Mapping Investigation
+
+To validate the entitlement-level training requirements, we created:
+
+Test-Rule-TrainingEntitlementMapping
+
+This rule retrieves assigned IdentityEntitlement records and compares them against ManagedAttribute metadata in the Entitlement Catalog.
+
+We initially investigated seven identities identified by the notification task.
+
+The diagnostic results showed:
+
+Metric	Result
+Identities checked	7
+Assigned entitlement records	246
+Catalog matches	236
+Direct requiredCourse mappings found	0
+Unmatched entitlement records	10
+
+This confirmed that none of the matched catalog entitlements for these identities had a populated direct requiredCourse mapping.
+
+To perform positive testing, we therefore used the existing TEST entitlement Test_NERC_Entitlement1 under SAP ECC.
+
+Its metadata was verified as:
+
+* requiredCourse = CORP-9124WBT
+* revokeOnExpTraining = true
+* requestable = true
+
+5. TEST Entitlement Assignment and Provisioning
+
+We selected identity JX45, which had an existing CORP-9124WBT training record falling within the 7-day notification window.
+
+We submitted an access request to assign Test_NERC_Entitlement1 to JX45.
+
+Our immediate objective was to validate the SailPoint notification eligibility logic, rather than confirm successful SAP ECC role provisioning.
+
+6. Scan-Only Notification Testing
+
+We executed the task:
+
+Test- NERC Training Expiration Notification
+
+with the following configuration:
+
+Parameter	Value
+Training selection	ALL
+Notification intervals	30, 15, 7 days
+scanOnly	true
+Email sending	Disabled by scan-only behavior
+
+Initial scan-only execution
+
+Before configuring the TEST entitlement assignment, the task returned:
+
+* Task status: Success
+* Identities identified: 7
+* Courses processed: 4
+* Users with removable access: 0
+* Emails sent: 0
+
+This established the baseline, where users with expiring training were identified but no qualifying removable access was detected.
+
+Positive scan-only execution
+
+After assigning the configured TEST entitlement to JX45, we executed the notification task again.
+
+The results were:
+
+Validation	Result
+Task execution	Success
+Identities identified	7
+Courses processed	4
+Users with removable access	1
+Emails sent	0
+Execution mode	SCAN ONLY
+
+This demonstrated that the enhanced rule was able to detect a qualifying entitlement associated with expiring training while preventing email delivery in scan-only mode.
+
+The increase in the removable-access count from 0 to 1 provided positive validation of the entitlement eligibility logic in the TEST scenario.
+
+7. Current Status and Pending Validation
+
+The following activities have been completed:
+
+* Existing training notification framework reviewed.
+* Dynamic training discovery implemented.
+* Entitlement-level eligibility filtering added.
+* Training database inventory generated.
+* Assigned entitlement and metadata diagnostics developed.
+* TEST entitlement metadata validated.
+* Positive scan-only notification scenario executed successfully.
+* No emails sent during scan-only validation.
+
+The remaining activities are:
+
+1. Complete negative testing by disabling revokeOnExpTraining and confirming the identity is excluded.
+2. Validate email delivery using the existing warning template and an approved TEST email redirect.
+3. Verify manager CC behavior under controlled testing.
+4. Investigate the SAP ECC test-role provisioning warning if target-system validation is required.
+5. Complete regression testing and prepare the enhancement for review.
+
+8. Overall Update
+
+We have completed the development and initial positive testing of the dynamic training expiration notification enhancement in SailPoint IIQ TEST. The solution now discovers expiring training records dynamically and evaluates entitlement-level requiredCourse and revokeOnExpTraining configurations before determining notification eligibility.
+
+The key achievement is that the scan-only task successfully identified one user with qualifying removable access after the TEST entitlement was configured, compared with zero before the assignment, while sending no emails.
+
+The next focus is negative scenario validation, controlled email delivery testing, and final regression verification before considering deployment.
