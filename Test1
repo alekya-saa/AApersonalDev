@@ -1,3 +1,13 @@
+##################
+For the NERC Training Expiration Notification enhancement, we reviewed the existing SailPoint IdentityIQ notification framework and its two supporting rule libraries. The main enhancement was implemented in PGE-Rule-RuleExecutor-TrainingExpirationNotification-Dynamic. We introduced dynamic training-course discovery from the LMS database for the 30-, 15-, and 7-day expiration windows, while reusing the existing training table and policy libraries for user identification and entitlement evaluation.
+
+The key requirement was to notify users only when they hold an entitlement with a matching requiredCourse and revokeOnExpTraining enabled. We implemented this additional eligibility validation after the existing access-impact evaluation. We also introduced task-controlled scan-only functionality, allowing us to validate results without sending emails.
+
+For testing, we developed separate training inventory, expiration diagnostic, and entitlement-mapping rules. We analyzed 23,071 training records across five courses and checked 246 assigned entitlement records for seven selected identities. Since none of the matched catalog entitlements had direct training mappings, we configured a TEST entitlement with CORP-9124WBT and enabled the revoke-on-expiration flag.
+
+In our positive scan-only test, the qualifying removable-access count increased from zero to one after the TEST entitlement was assigned, while emails remained at zero as expected. We also tested non-scan-only execution, which submitted one notification, but actual mailbox delivery remains under investigation. The remaining activities are negative checkbox validation, email-delivery verification, and final regression testing.
+
+
 ####################
 NERC Training Expiration Notification
 1. Requirement and architecture
